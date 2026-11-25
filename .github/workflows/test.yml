@@ -1,0 +1,36 @@
+name: Test ESP32 OTA lab
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  qemu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: espressif/idf:v5.5.3
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test host service
+        run: |
+          . "$IDF_PATH/export.sh"
+          python -m unittest discover -s tests -v
+      - name: Build three ESP32 images
+        run: |
+          . "$IDF_PATH/export.sh"
+          python -m ota_lab build
+      - name: Verify firmware under QEMU
+        run: |
+          . "$IDF_PATH/export.sh"
+          python -m ota_lab verify
+      - name: Upload UART log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-qemu-uart
+          path: .build/qemu.log
+          include-hidden-files: true

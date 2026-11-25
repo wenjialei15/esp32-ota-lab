@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#19242e">
+  <meta name="description" content="无需开发板，在浏览器里演示 ESP32 OTA 双分区升级、启动回滚和离线遥测。">
+  <title>ESP32 OTA Lab · 固件升级实验室</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="demo.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a href="./" class="brand"><span class="chip" aria-hidden="true">A/B</span> ESP32 OTA Lab</a>
+      <nav aria-label="站点导航">
+        <a href="#lab">实验控制台</a>
+        <a href="#run">本地验证</a>
+        <a href="https://github.com/wenjialei15/esp32-ota-lab">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </div>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">ESP32 · ESP-IDF · QEMU</p>
+        <h1>固件升级实验室</h1>
+        <p>观察 ESP32 如何缓存离线读数、试启动新固件，以及在自检失败时回到可用版本。</p>
+      </div>
+      <a class="button light" href="#run">运行 QEMU 实验 <span aria-hidden="true">↗</span></a>
+    </section>
+
+    <section id="lab" class="lab" aria-labelledby="lab-title">
+      <div class="section-head">
+        <div><h2 id="lab-title">实验控制台</h2><p>浏览器模拟。选择一个场景，观察分区、遥测和事件日志。</p></div>
+        <button id="reset" class="button outline" type="button">重置</button>
+      </div>
+
+      <div class="dashboard">
+        <section class="panel device" aria-labelledby="device-title">
+          <div class="panel-head">
+            <div><h3 id="device-title">设备状态</h3><p>esp32-lab</p></div>
+            <span id="network-state" class="network" role="status">在线</span>
+          </div>
+          <dl class="numbers">
+            <div><dt>当前固件</dt><dd id="version">1.0.0</dd></div>
+            <div><dt>待补传</dt><dd><span id="queued">0</span><small> / 16</small></dd></div>
+            <div><dt>已接收</dt><dd id="received">0</dd></div>
+          </dl>
+          <div class="partition-heading"><h4>Flash 双分区</h4><span>4 MB</span></div>
+          <div class="slots">
+            <div class="slot" id="slot-a" data-state="active">
+              <span class="slot-name">ota_0</span>
+              <strong id="slot-a-version">1.0.0</strong>
+              <small id="slot-a-status">运行中</small>
+            </div>
+            <div class="slot" id="slot-b" data-state="empty">
+              <span class="slot-name">ota_1</span>
+              <strong id="slot-b-version">—</strong>
+              <small id="slot-b-status">空闲</small>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <label for="progress">OTA 进度</label>
+            <progress id="progress" max="100" value="0"></progress>
+            <output id="progress-text" for="progress" aria-live="polite">等待升级</output>
+          </div>
+        </section>
+
+        <section class="panel scenarios" aria-labelledby="scenario-title">
+          <div class="panel-head"><div><h3 id="scenario-title">操作</h3><p>改变网络或下发候选固件</p></div></div>
+          <div class="scenario-list">
+            <button id="network" class="scenario" type="button"><span><strong>断开网络</strong><small>读数进入离线队列</small></span><span class="arrow" aria-hidden="true">→</span></button>
+            <button id="healthy" class="scenario" type="button"><span><strong>升级到 1.1.0</strong><small>自检通过并确认新分区</small></span><span class="arrow" aria-hidden="true">→</span></button>
+            <button id="faulty" class="scenario" type="button"><span><strong>下发故障版本 1.2.0</strong><small>首启自检失败后回滚</small></span><span class="arrow" aria-hidden="true">→</span></button>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel events" aria-labelledby="log-title">
+        <div class="panel-head"><div><h3 id="log-title">事件日志</h3><p>最新事件在顶部</p></div></div>
+        <ol id="log" aria-label="最近的设备事件"></ol>
+      </section>
+    </section>
+
+    <section id="run" class="run">
+      <div><h2>在电脑上验证固件</h2><p>用 ESP-IDF 编译三个版本，再让 Espressif QEMU 执行真实镜像。脚本记录串口输出并验证缓存补传、下载中断和启动回滚。</p>
+        <a class="guide" href="https://github.com/wenjialei15/esp32-ota-lab#本地运行">查看安装与运行说明 <span aria-hidden="true">↗</span></a></div>
+      <pre><code>python -m ota_lab build
+python -m ota_lab verify</code></pre>
+    </section>
+  </main>
+  <footer class="shell footer">
+    <span>ESP32 OTA Lab · MIT</span>
+    <a href="https://github.com/wenjialei15/esp32-ota-lab">查看源码 <span aria-hidden="true">↗</span></a>
+  </footer>
+</body>
+</html>
