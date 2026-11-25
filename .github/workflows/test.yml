@@ -26,6 +26,7 @@ jobs:
       - name: Verify firmware under QEMU
         run: |
           . "$IDF_PATH/export.sh"
+          qemu-system-xtensa --version
           python -m ota_lab verify
       - name: Upload UART log
         if: always()

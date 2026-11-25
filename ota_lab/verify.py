@@ -31,18 +31,33 @@ def make_flash(build, destination):
 
 
 class Console:
-    def __init__(self, process, echo):
+    def __init__(self, process, diagnostics, echo):
         self.process = process
+        self.diagnostics = diagnostics
         self.echo = echo
         self.lines = []
         self.lock = threading.Lock()
 
-    def read(self):
-        for line in self.process.stdout:
-            with self.lock:
-                self.lines.append(line.strip())
-            if self.echo:
-                print(line.rstrip(), flush=True)
+    def read(self, uart):
+        pending = b""
+        with uart.open("rb") as stream:
+            while True:
+                block = stream.read(4096)
+                if not block:
+                    if self.process.poll() is not None:
+                        break
+                    time.sleep(0.05)
+                    continue
+                *lines, pending = (pending + block).split(b"\n")
+                decoded = [line.decode("utf-8", errors="replace").strip() for line in lines]
+                with self.lock:
+                    self.lines.extend(decoded)
+                if self.echo:
+                    for line in decoded:
+                        print(line, flush=True)
+
+    def emulator_output(self):
+        return self.diagnostics.read_text(encoding="utf-8", errors="replace")
 
     def snapshot(self):
         with self.lock:
@@ -63,24 +78,27 @@ class Console:
             if value:
                 return value
             time.sleep(0.15)
-        tail = "\n".join(self.snapshot()[-30:])
+        tail = "\n".join([*self.emulator_output().splitlines()[-8:], *self.snapshot()[-30:]])
         raise RuntimeError(f"waiting for {description} failed (QEMU exit: {self.process.poll()})\n{tail}")
 
 
 @contextmanager
 def run_qemu(executable, flash, log, *, echo):
+    uart = flash.with_name("uart.log")
+    uart.touch()
+    diagnostics = flash.with_name("emulator.log")
     command = [
-        executable, "-machine", "esp32", "-nographic", "-monitor", "none",
+        executable, "-machine", "esp32", "-display", "none", "-monitor", "none",
+        "-serial", f"file:{uart.name}",
         "-drive", f"file={flash.name},if=mtd,format=raw",
         "-nic", "user,model=open_eth",
         "-global", "driver=timer.esp32.timg,property=wdt_disable,value=true",
     ]
-    with subprocess.Popen(
-        command, cwd=flash.parent, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding="utf-8", errors="replace",
+    with diagnostics.open("wb") as output, subprocess.Popen(
+        command, cwd=flash.parent, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
     ) as process:
-        console = Console(process, echo)
-        reader = threading.Thread(target=console.read, daemon=True)
+        console = Console(process, diagnostics, echo)
+        reader = threading.Thread(target=console.read, args=(uart,), daemon=True)
         reader.start()
         try:
             yield console
@@ -95,7 +113,9 @@ def run_qemu(executable, flash, log, *, echo):
             reader.join(timeout=5)
             if log is not None:
                 log.parent.mkdir(parents=True, exist_ok=True)
-                log.write_text("\n".join(console.snapshot()) + "\n", encoding="utf-8")
+                log.write_text(console.emulator_output() + "\n" + uart.read_text(
+                    encoding="utf-8", errors="replace",
+                ), encoding="utf-8")
 
 
 def matching_records(state, version):
